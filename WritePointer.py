@@ -1,14 +1,14 @@
 class WritePointer:
 
-    def __init__(self, pointer, new_value, new_size):
-        self.__pointer = pointer
-        self.__new_position = pointer.position
+    def __init__(self, origin, new_value, new_size):
+        self.__origin = origin
+        self.__new_position = origin.position
         self.__new_value = new_value
         self.__new_size = new_size
 
     @property
-    def pointer(self):
-        return self.__pointer
+    def origin(self):
+        return self.__origin
 
     @property
     def new_position(self):
@@ -22,21 +22,25 @@ class WritePointer:
     def new_size(self):
         return self.__new_size
 
+    @property
+    def type(self):
+        return self.__origin.type
+
     def shift(self, offset):
         self.__new_position = self.__new_position + offset
 
     def offset(self):
-        return self.new_size - self.pointer.size
+        return self.new_size - self.origin.size
 
     def __str__(self):
         body = ''
-        if self.pointer.type == 'uint':
-            body = body + '{{new_pos: {:X}, pt: {}, value: {}, size: {}}}' \
-                .format(self.__new_position, self.pointer, self.new_value, self.new_size)
-        elif self.pointer.type == 'utf16':
-            body = body + '{{new_pos: {:X}, pt: {}, value: {}, size: {}}}'\
-                    .format(self.__new_position, self.pointer, '$UTF16', self.new_size)
+        if self.type == 'uint':
+            body = body + '{{new_pos: {:X}, orig: {}, value: {}, size: {}}}' \
+                .format(self.__new_position, self.origin, self.new_value, self.new_size)
+        elif self.type == 'utf16':
+            body = body + '{{new_pos: {:X}, orig: {}, value: {}, size: {}}}'\
+                    .format(self.__new_position, self.origin, '$UTF16', self.new_size)
         else:
-            body = body + '{{new_pos: {:X}, pt: {}, value: "{}", size: {}}}' \
-                .format(self.__new_position, self.pointer, self.new_value, self.new_size)
+            body = body + '{{new_pos: {:X}, orig: {}, value: "{}", size: {}}}' \
+                .format(self.__new_position, self.origin, self.new_value, self.new_size)
         return '{}'.format(body)

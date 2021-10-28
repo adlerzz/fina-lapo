@@ -39,18 +39,18 @@ class Mapper:
         size = pointer.size
         raw = self.__content[p:p + size]
         if pointer.type == 'uint':
-            pointer.value = int.from_bytes(raw, 'big')
+            pointer.value = utils.bytes_to_uint(raw)
         elif pointer.type == 'int':
-            pointer.value = int.from_bytes(raw, 'big', signed=True)
+            pointer.value = utils.bytes_to_int(raw)
         elif pointer.type == 'str':
             length = self.__content[p]
             raw = self.__content[p+1: p+length+1]
-            pointer.value = str(raw, encoding=codec.NO_UNICODE)
+            pointer.value = utils.bytes_to_str(raw)
             size = utils.get_padded_length(pointer.value)
             pointer.size = size
 
         elif pointer.type == 'utf16':
-            size = int.from_bytes(self.__content[p: p+4], 'big') + 4
+            size = int.from_bytes(self.__content[p: p+4], codec.BYTE_ORDER) + 4
             pointer.size = size
             pointer.value = self.__content[p+4: p+size]
         self.__pointer = self.__pointer + size
@@ -61,45 +61,36 @@ class Mapper:
         self.__pointer = p + size
         return res
 
-    def read_int(self, size, signed=False):
-        abytes = self.read_bytes(size)
-        res = int.from_bytes(abytes, 'big', signed=signed)
-        return res
+    def read_uint16(self):
+        abytes = self.read_bytes(2)
+        return utils.bytes_to_uint(abytes)
 
-    def read_str(self, size):
-        bytes = self.read_bytes(size)
-        res = str(bytes, encoding=codec.NO_UNICODE)
-        return res
+    def read_int16(self):
+        abytes = self.read_bytes(2)
+        return utils.bytes_to_int(abytes)
 
-    def write_bytes(self, value, instead=None):
-        p = self.__pointer
+    def read_uint32(self):
+        abytes = self.read_bytes(4)
+        return utils.bytes_to_uint(abytes)
+
+    def write_pointer(self, wpointer):
+        p = wpointer.new_position
         c = self.__content
-        offset = instead if instead is not None else len(value)
-        self.__content = c[:p] + value + c[p + offset:]
-        self.__pointer = self.__pointer + len(value)
-
-    def write_int(self, value, size):
-        self.write_bytes(value.to_bytes(size, 'big'))
-
-    def write_str(self, value, instead=None):
-        b = bytes(value, codec.NO_UNICODE)
-        self.write_bytes(b, instead)
-
-    def write_pointer(self, pointer):
-        p = pointer.new_position
-        c = self.__content
-        if pointer.pointer.type == 'uint':
-            self.__content = c[:p] + pointer.new_value.to_bytes(pointer.new_size, 'big') + c[p+pointer.pointer.size:]
-        elif pointer.pointer.type == 'str':
-            nl = len(pointer.new_value).to_bytes(1, 'big')
-            ns = bytes(pointer.new_value, codec.NO_UNICODE).ljust(pointer.new_size - 1, b'\x00')
-            self.__content = c[:p] + nl + ns + c[p+pointer.pointer.size:]
-        elif pointer.pointer.type == 'utf16':
-            nl = (pointer.new_size - 4).to_bytes(4, 'big')
-            self.__content = c[:p] + nl + pointer.new_value[4:] + c[p+pointer.pointer.size:]
+        n = None
+        if wpointer.type == 'uint':
+            if wpointer.origin.size == 4:
+                n = utils.uint32_to_bytes(wpointer.new_value)
+        elif wpointer.type == 'str':
+            new_len = utils.uint8_to_bytes(len(wpointer.new_value))
+            new_str = utils.str_to_bytes(wpointer.new_value).ljust(wpointer.new_size - 1, b'\x00')
+            n = new_len + new_str
+        elif wpointer.type == 'utf16':
+            new_len = utils.uint32_to_bytes(wpointer.new_size - 4)
+            n = new_len + wpointer.new_value[4:]
+        self.__content = c[:p] + n + c[p+wpointer.origin.size:]
 
     def move_on(self, offset):
-        self.__pointer = self.__pointer + offset
+        self.__pointer += offset
 
     def move_to(self, position):
         self.__pointer = position

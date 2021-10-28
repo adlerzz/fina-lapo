@@ -1,5 +1,6 @@
 NO_UNICODE = 'cp1251'
 UNICODE = 'utf_16_be'
+BYTE_ORDER = 'big'
 
 TRANSLIT_MAP = {
     "а": "a", "б": "b", "в": "v",

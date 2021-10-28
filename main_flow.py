@@ -20,7 +20,7 @@ class Reader:
         signature = self.f.read_bytes(4)
         if signature != b'8BPS':
             raise Exception("Bad format")
-        version = self.f.read_int(2)
+        version = self.f.read_uint16()
         if version == 1:
             pass
         elif version == 2:
@@ -31,21 +31,21 @@ class Reader:
         self.f.move_on(20)
 
     def handle_color_mode_data(self):
-        color_data_length = self.f.read_int(4)
+        color_data_length = self.f.read_uint32()
         self.f.move_on(color_data_length)
 
     def handle_image_resources(self):
-        img_res_length = self.f.read_int(4)
+        img_res_length = self.f.read_uint32()
         self.f.move_on(img_res_length)
 
     def handle_layer_pre(self):
         self.f.move_on(16)
-        channel_count = self.f.read_int(2)
+        channel_count = self.f.read_uint16()
         self.f.move_on(channel_count * 6 + 12)
         extra_fields_len = self.f.mark_uint32()
-        mask_data_length = self.f.read_int(4)
+        mask_data_length = self.f.read_uint32()
         self.f.move_on(mask_data_length)
-        br_data_length = self.f.read_int(4)
+        br_data_length = self.f.read_uint32()
         self.f.move_on(br_data_length)
         d = 4 + mask_data_length + 4 + br_data_length
         return extra_fields_len, d
@@ -77,7 +77,7 @@ class ActionComposer:
         self.__l_data_length = self.__f.mark_uint32()
         logging.debug(f'l_data_length: {self.__l_data_length}')
 
-        layer_count = abs(self.__f.read_int(2, True))
+        layer_count = abs(self.__f.read_int16())
         logging.debug(f'layer_count: {layer_count}')
 
         for i in range(0, layer_count):
@@ -85,9 +85,9 @@ class ActionComposer:
             # print('###{} layer###'.format(i+1))
             (extra_fields_length, delta) = r.handle_layer_pre()
             layer_name = self.__f.mark_str()
-            sh = extra_fields_length.value - delta - layer_name.size
+            shift = extra_fields_length.value - delta - layer_name.size
 
-            while sh > 8:
+            while shift > 8:
                 a_signature = self.__f.read_bytes(4)
                 if a_signature != b'8BIM' and a_signature != b'8B64':
                     raise Exception("File is corrupted")
@@ -103,10 +103,7 @@ class ActionComposer:
 
                         self.__layer_pointers.append((extra_fields_length, layer_name, a_value))
 
-                sh = sh - 8 - a_value.size
-
-        if sh > 0:
-            self.__f.move_on(sh)
+                shift -= 8 + a_value.size
 
         logging.debug(f'layer_names: {self.__layer_names}')
 
@@ -116,15 +113,16 @@ class ActionComposer:
             (ex, layer, u_layer) = p
             # print(layer, u_layer)
             new_layer_name = codec.translate_name(layer.value)
-            p = self.__layer_names[new_layer_name]
-            self.__layer_names[new_layer_name] = p - 1
-            if p > 1:
-                new_layer_name = new_layer_name + DUPLICATE_SUFFIX + str(p)
+            repeats = self.__layer_names[new_layer_name]
+            self.__layer_names[new_layer_name] = repeats - 1
+            if repeats > 1:
+                new_layer_name += DUPLICATE_SUFFIX + str(repeats)
 
             ln = WritePointer(layer, new_layer_name, utils.get_padded_length(new_layer_name))
 
-            u_b = len(new_layer_name).to_bytes(4, 'big') + bytes(new_layer_name, codec.UNICODE) + b'\x00\x00'
-            u_l = len(u_b).to_bytes(4, 'big')
+            u_b = utils.uint32_to_bytes(len(new_layer_name)) + utils.str_to_bytes(new_layer_name) + b'\x00\x00'
+            u_l = utils.uint32_to_bytes(len(u_b))
+
             un = WritePointer(u_layer, u_l + u_b, len(u_b) + 4)
 
             n_ex = WritePointer(ex, ex.value + ln.offset() + un.offset(), ex.size)
@@ -137,15 +135,15 @@ class ActionComposer:
         for p in self.__layer_wpointers:
             (ex, ln, un) = p
             ex.shift(sh)
-            sh = sh + ex.offset()
+            sh += ex.offset()
             # print(ex)
 
             ln.shift(sh)
-            sh = sh + ln.offset()
+            sh += ln.offset()
             # print(ln)
 
             un.shift(sh)
-            sh = sh + un.offset()
+            sh += un.offset()
             # print(un)
 
         logging.debug(f'Summary size shift : {sh}')
@@ -168,7 +166,7 @@ class ActionComposer:
             logging.debug(un)
             logging.debug('{} of {}'.format(counter, len(self.__layer_wpointers)))
             print('{} of {}'.format(counter, len(self.__layer_wpointers)))
-            counter = counter + 1
+            counter += 1
 
         self.__f.save(filename)
         logging.info(f'stored to"{filename}"')

@@ -1,4 +1,5 @@
 import codec
+import utils
 
 
 class Pointer:
@@ -14,7 +15,7 @@ class Pointer:
         return self.__position
 
     def shift(self, offset):
-        self.__position = self.__position + offset
+        self.__position += offset
 
     @property
     def size(self):
@@ -38,7 +39,7 @@ class Pointer:
 
     def __str__(self):
         if self.type == 'utf16':
-            length = int.from_bytes(self.value[:4], 'big')
+            length = utils.bytes_to_uint(self.value[:4])
             value = self.value[4:].decode(codec.UNICODE).rstrip('\x00')
             return "{{pos: {:X}, type: {}, size: {}, len: {}, value: \"{}\"}}" \
                 .format(self.position, self.type, self.size, length, value)
