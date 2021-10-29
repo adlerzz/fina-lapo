@@ -9,7 +9,7 @@ class Mapper:
             f.seek(0, 2)
             size = f.tell()
             f.seek(0, 0)
-            self.__content = f.read(size)
+            self.__content = bytearray(f.read(size))
         self.__pointer = 0
 
     def mark_uint8(self):
@@ -72,7 +72,6 @@ class Mapper:
 
     def write_pointer(self, wpointer):
         p = wpointer.new_position
-        c = self.__content
         n = None
         if wpointer.type == 'uint':
             if wpointer.origin.size == 4:
@@ -84,7 +83,7 @@ class Mapper:
         elif wpointer.type == 'utf16':
             new_len = utils.uint32_to_bytes(wpointer.new_size - 4)
             n = new_len + wpointer.new_value[4:]
-        self.__content = c[:p] + n + c[p+wpointer.origin.size:]
+        self.__content[p:p+wpointer.origin.size] = n
 
     def move_on(self, offset):
         self.__pointer += offset
