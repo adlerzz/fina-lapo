@@ -1,5 +1,3 @@
-# "orthodox_xmas_angel_test.psd"
-
 from Mapper import *
 import codec
 import utils
@@ -16,7 +14,7 @@ class Reader:
     def __init__(self, file):
         self.f = file
 
-    def handle_file_header(self):
+    def read_file_header(self):
         signature = self.f.read_bytes(4)
         if signature != b'8BPS':
             raise Exception("Bad format")
@@ -30,15 +28,15 @@ class Reader:
 
         self.f.move_on(20)
 
-    def handle_color_mode_data(self):
+    def read_color_mode_data(self):
         color_data_length = self.f.read_uint32()
         self.f.move_on(color_data_length)
 
-    def handle_image_resources(self):
+    def read_image_resources(self):
         img_res_length = self.f.read_uint32()
         self.f.move_on(img_res_length)
 
-    def handle_layer_pre(self):
+    def read_layer_pre(self):
         self.f.move_on(16)
         channel_count = self.f.read_uint16()
         self.f.move_on(channel_count * 6 + 12)
@@ -54,7 +52,7 @@ class Reader:
 class ActionComposer:
 
     def __init__(self):
-        self.__f = None
+        self.__filemap = None
         self.__lm_data_length = None
         self.__l_data_length = None
         self.__layer_names = dict()
@@ -65,42 +63,41 @@ class ActionComposer:
 
     def do_read(self, filename):
         logging.info(f'start reading with "{filename}"')
-        self.__f = Mapper(filename)
-        r = Reader(self.__f)
-        r.handle_file_header()
-        r.handle_color_mode_data()
-        r.handle_image_resources()
+        self.__filemap = Mapper(filename)
+        r = Reader(self.__filemap)
+        r.read_file_header()
+        r.read_color_mode_data()
+        r.read_image_resources()
 
-        self.__lm_data_length = self.__f.mark_uint32()
+        self.__lm_data_length = self.__filemap.mark_uint32()
         logging.debug(f'lm_data_length: {self.__lm_data_length}')
 
-        self.__l_data_length = self.__f.mark_uint32()
+        self.__l_data_length = self.__filemap.mark_uint32()
         logging.debug(f'l_data_length: {self.__l_data_length}')
 
-        layer_count = abs(self.__f.read_int16())
+        layer_count = abs(self.__filemap.read_int16())
         logging.debug(f'layer_count: {layer_count}')
 
         for i in range(0, layer_count):
 
             # print('###{} layer###'.format(i+1))
-            (extra_fields_length, delta) = r.handle_layer_pre()
-            layer_name = self.__f.mark_str()
+            (extra_fields_length, delta) = r.read_layer_pre()
+            layer_name = self.__filemap.mark_str()
             shift = extra_fields_length.value - delta - layer_name.size
 
             while shift > 8:
-                a_signature = self.__f.read_bytes(4)
+                a_signature = self.__filemap.read_bytes(4)
                 if a_signature != b'8BIM' and a_signature != b'8B64':
                     raise Exception("File is corrupted")
-                a_key = self.__f.read_bytes(4)
-                a_value = self.__f.mark_utf16()
+                a_key = self.__filemap.read_bytes(4)
+                a_value = self.__filemap.mark_utf16()
                 if a_key == b'luni':
                     u_layer_name = a_value.value[4:].decode(codec.UNICODE).rstrip('\x00')
 
                     new_layer_name = codec.translate_name(u_layer_name)
 
                     if not new_layer_name.startswith('</') and new_layer_name != layer_name.value:
-                        utils.inc(self.__layer_names, new_layer_name)
-
+                        utils.count(self.__layer_names, new_layer_name)
                         self.__layer_pointers.append((extra_fields_length, layer_name, a_value))
 
                 shift -= 8 + a_value.size
@@ -109,8 +106,8 @@ class ActionComposer:
 
     def do_translate(self):
 
-        for p in self.__layer_pointers:
-            (ex, layer, u_layer) = p
+        for ptr in self.__layer_pointers:
+            (extra, layer, u_layer) = ptr
             # print(layer, u_layer)
             new_layer_name = codec.translate_name(layer.value)
             repeats = self.__layer_names[new_layer_name]
@@ -125,26 +122,18 @@ class ActionComposer:
 
             un = WritePointer(u_layer, u_l + u_b, len(u_b) + 4)
 
-            n_ex = WritePointer(ex, ex.value + ln.offset() + un.offset(), ex.size)
+            n_ex = WritePointer(extra, extra.value + ln.offset() + un.offset(), extra.size)
 
-            self.__layer_wpointers.append((n_ex, ln, un))
+            self.__layer_wpointers.append(n_ex)
+            self.__layer_wpointers.append(ln)
+            self.__layer_wpointers.append(un)
 
     def do_shifts(self):
         sh = 0
 
         for p in self.__layer_wpointers:
-            (ex, ln, un) = p
-            ex.shift(sh)
-            sh += ex.offset()
-            # print(ex)
-
-            ln.shift(sh)
-            sh += ln.offset()
-            # print(ln)
-
-            un.shift(sh)
-            sh += un.offset()
-            # print(un)
+            p.shift(sh)
+            sh += p.offset()
 
         logging.debug(f'Summary size shift : {sh}')
 
@@ -152,24 +141,20 @@ class ActionComposer:
         self.__ld = WritePointer(self.__l_data_length, self.__l_data_length.value + sh, self.__l_data_length.size)
 
     def do_write(self, filename):
-        self.__f.write_pointer(self.__lmd)
-        self.__f.write_pointer(self.__ld)
+        self.__filemap.write_pointer(self.__lmd)
+        self.__filemap.write_pointer(self.__ld)
 
         counter = 1
+        all_of = len(self.__layer_wpointers)
         for p in self.__layer_wpointers:
-            (ex, ln, un) = p
-            self.__f.write_pointer(ex)
-            self.__f.write_pointer(ln)
-            self.__f.write_pointer(un)
-            logging.debug(ex)
-            logging.debug(ln)
-            logging.debug(un)
-            logging.debug('{} of {}'.format(counter, len(self.__layer_wpointers)))
-            print('{} of {}'.format(counter, len(self.__layer_wpointers)))
-            counter += 1
+            self.__filemap.write_pointer(p)
 
-        self.__f.save(filename)
-        logging.info(f'stored to"{filename}"')
+            logging.debug(p)
+            logging.debug('{} of {}'.format(counter, all_of))
+            print('{} of {}'.format(counter, all_of))
+            counter += 1
+        self.__filemap.save(filename)
+        logging.info(f'stored to "{filename}"')
 
 
 try:

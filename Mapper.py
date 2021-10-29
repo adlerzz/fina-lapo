@@ -1,5 +1,3 @@
-import codec
-import utils
 from Pointer import *
 
 
@@ -48,7 +46,6 @@ class Mapper:
             pointer.value = utils.bytes_to_str(raw)
             size = utils.get_padded_length(pointer.value)
             pointer.size = size
-
         elif pointer.type == 'utf16':
             size = int.from_bytes(self.__content[p: p+4], codec.BYTE_ORDER) + 4
             pointer.size = size
@@ -100,6 +97,5 @@ class Mapper:
 
     def save(self, save_as=None):
         filename = save_as if save_as is not None else self.__filename
-        print(filename)
         with open(filename, "wb") as f:
             f.write(self.__content)

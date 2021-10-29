@@ -9,7 +9,7 @@ def get_padded_length(s):
     return 1 + len(s) + get_pad_length(len(s))
 
 
-def inc(dictionary, key):
+def count(dictionary, key):
     if key not in dictionary:
         dictionary[key] = 1
     else:
@@ -26,6 +26,7 @@ def bytes_to_int(bytedata):
 
 def bytes_to_str(bytedata):
     return str(bytedata, encoding=codec.NO_UNICODE)
+
 
 def uint8_to_bytes(value):
     return value.to_bytes(1, codec.BYTE_ORDER)
