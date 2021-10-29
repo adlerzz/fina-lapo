@@ -7,7 +7,7 @@ import logging
 DUPLICATE_SUFFIX = '_DUP_'
 LOG_FORMAT = '%(asctime)s [%(levelname)-5s] %(funcName)s : %(message)s'
 
-logging.basicConfig(filename='app.log', level=logging.DEBUG, format=LOG_FORMAT)
+logging.basicConfig(filename='logs/app.log', level=logging.DEBUG, format=LOG_FORMAT)
 
 
 class Reader:
