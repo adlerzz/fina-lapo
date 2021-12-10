@@ -38,3 +38,7 @@ def uint32_to_bytes(value):
 
 def str_to_bytes(value):
     return bytes(value, codec.NO_UNICODE)
+
+
+def str_to_ubytes(value):
+    return bytes(value, codec.UNICODE)

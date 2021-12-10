@@ -117,7 +117,7 @@ class ActionComposer:
 
             ln = WritePointer(layer, new_layer_name, utils.get_padded_length(new_layer_name))
 
-            u_b = utils.uint32_to_bytes(len(new_layer_name)) + utils.str_to_bytes(new_layer_name) + b'\x00\x00'
+            u_b = utils.uint32_to_bytes(len(new_layer_name)) + utils.str_to_ubytes(new_layer_name) + b'\x00\x00'
             u_l = utils.uint32_to_bytes(len(u_b))
 
             un = WritePointer(u_layer, u_l + u_b, len(u_b) + 4)
@@ -159,10 +159,10 @@ class ActionComposer:
 
 try:
     ac = ActionComposer()
-    ac.do_read('test.psd')
+    ac.do_read('nymph.psd')
     ac.do_translate()
     ac.do_shifts()
-    ac.do_write('handled.psd')
+    ac.do_write('hymph_handled.psd')
 except Exception as ex:
     logging.error(ex)
     print(ex)
