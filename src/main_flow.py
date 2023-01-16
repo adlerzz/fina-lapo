@@ -1,3 +1,4 @@
+import sys
 from Mapper import *
 import codec
 import utils
@@ -93,10 +94,11 @@ class ActionComposer:
                 a_value = self.__filemap.mark_utf16()
                 if a_key == b'luni':
                     u_layer_name = a_value.value[4:].decode(codec.UNICODE).rstrip('\x00')
+                    print(u_layer_name)
 
                     new_layer_name = codec.translate_name(u_layer_name)
 
-                    if not new_layer_name.startswith('</') and new_layer_name != layer_name.value:
+                    if not new_layer_name.startswith('</'):
                         utils.count(self.__layer_names, new_layer_name)
                         self.__layer_pointers.append((extra_fields_length, layer_name, a_value))
 
@@ -158,11 +160,22 @@ class ActionComposer:
 
 
 try:
+
+    args = len(sys.argv)
+    if args < 2 :
+       raise 'No input file'
+
+    input_file = sys.argv[1]
+
+    output_file = 'handled_' + input_file
+    if args > 2 :
+        output_file = sys.argv[2]
+
     ac = ActionComposer()
-    ac.do_read('nymph.psd')
+    ac.do_read(input_file)
     ac.do_translate()
     ac.do_shifts()
-    ac.do_write('hymph_handled.psd')
+    ac.do_write(output_file)
 except Exception as ex:
     logging.error(ex)
     print(ex)
